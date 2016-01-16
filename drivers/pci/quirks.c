@@ -3787,6 +3787,8 @@ static int reset_chelsio_generic_dev(struct pci_dev *dev, int probe)
 #define PCI_DEVICE_ID_INTEL_82599_SFP_VF   0x10ed
 #define PCI_DEVICE_ID_INTEL_IVB_M_VGA      0x0156
 #define PCI_DEVICE_ID_INTEL_IVB_M2_VGA     0x0166
+#define PCI_DEVICE_ID_LSI_LOGIC_SAS3008       0x0097
+#define PCI_DEVICE_ID_LSI_LOGIC_MEGARAID_3108 0x005d
 
 static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82599_SFP_VF,
@@ -3797,6 +3799,10 @@ static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
 		reset_ivb_igd },
 	{ PCI_VENDOR_ID_CHELSIO, PCI_ANY_ID,
 		reset_chelsio_generic_dev },
+        { PCI_VENDOR_ID_LSI_LOGIC, PCI_DEVICE_ID_LSI_LOGIC_SAS3008,
+		pci_parent_bus_reset },
+        { PCI_VENDOR_ID_LSI_LOGIC, PCI_DEVICE_ID_LSI_LOGIC_MEGARAID_3108,
+		pci_parent_bus_reset },
 	{ 0 }
 };
 
