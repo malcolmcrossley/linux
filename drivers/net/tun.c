@@ -115,7 +115,7 @@ do {								\
 #define TUN_VNET_BE     0x40000000
 
 #define TUN_FEATURES (IFF_NO_PI | IFF_ONE_QUEUE | IFF_VNET_HDR | \
-		      IFF_MULTI_QUEUE)
+		      IFF_MULTI_QUEUE | IFF_RX_CSUM_FIXUP)
 #define GOODCOPY_LEN 128
 
 #define FLT_EXACT_COUNT 8
@@ -1357,6 +1357,12 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 	int vlan_offset = 0;
 	int vlan_hlen = 0;
 	int vnet_hdr_sz = 0;
+	size_t start_offset = 0;
+	struct iov_iter m_iter;
+	bool fixup_csum = false;
+	__wsum csum = 0;
+	__sum16 fsum = 0;
+	__sum16 __user *pcsum = NULL;
 
 	if (skb_vlan_tag_present(skb))
 		vlan_hlen = VLAN_HLEN;
@@ -1403,6 +1409,12 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			return -EINVAL;
 		}
 
+		if (skb->ip_summed == CHECKSUM_PARTIAL &&
+		    tun->flags & IFF_RX_CSUM_FIXUP) {
+			gso.flags = VIRTIO_NET_HDR_F_DATA_VALID;
+			fixup_csum = true;
+		}
+
 		if (copy_to_iter(&gso, sizeof(gso), iter) != sizeof(gso))
 			return -EFAULT;
 
@@ -1430,8 +1442,23 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			goto done;
 	}
 
-	skb_copy_datagram_iter(skb, vlan_offset, iter, skb->len - vlan_offset);
+	if (fixup_csum) {
+		start_offset = skb->csum_start - skb_headroom(skb);
+		skb_copy_datagram_iter(skb, vlan_offset, iter, start_offset - vlan_offset);
 
+		m_iter = *iter;
+		skb_copy_and_csum_datagram(skb, start_offset, iter, skb->len - start_offset, &csum);
+
+		iov_iter_advance(&m_iter, skb->csum_offset);
+
+		pcsum = m_iter.iov->iov_base + m_iter.iov_offset;
+		fsum = csum_fold(csum);
+
+		if (copy_to_user(pcsum, &fsum, sizeof(fsum)))
+			return -EFAULT;
+	} else {
+		skb_copy_datagram_iter(skb, vlan_offset, iter, skb->len - vlan_offset);
+	}
 done:
 	/* caller is in process context, */
 	stats = get_cpu_ptr(tun->pcpu_stats);
@@ -1835,7 +1862,6 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 	}
 
 	netif_carrier_on(tun->dev);
-
 	tun_debug(KERN_INFO, tun, "tun_set_iff\n");
 
 	tun->flags = (tun->flags & ~TUN_FEATURES) |
