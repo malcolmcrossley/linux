@@ -4966,6 +4966,20 @@ void kvm_mmu_invalidate_mmio_sptes(struct kvm *kvm, struct kvm_memslots *slots)
 	}
 }
 
+void kvm_mmu_pr_debug_sptes(struct kvm_vcpu *vcpu, u64 gpa)
+{
+	struct kvm_shadow_walk_iterator iterator;
+	u64 spte = 0ull;
+    
+	walk_shadow_page_lockless_begin(vcpu);
+
+	for_each_shadow_entry_lockless(vcpu, gpa, iterator, spte)
+		pr_info("  [%d]: %016llx\n", iterator.level, spte);
+
+	walk_shadow_page_lockless_end(vcpu);
+}
+EXPORT_SYMBOL_GPL(kvm_mmu_pr_debug_sptes);
+
 static unsigned long
 mmu_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 {

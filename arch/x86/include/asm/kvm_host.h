@@ -1397,4 +1397,6 @@ static inline int kvm_cpu_get_apicid(int mps_cpu)
 #endif
 }
 
+void kvm_mmu_pr_debug_sptes(struct kvm_vcpu *vcpu, u64 gpa);
+
 #endif /* _ASM_X86_KVM_HOST_H */

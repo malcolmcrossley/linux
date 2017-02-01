@@ -6108,6 +6108,20 @@ static int handle_task_switch(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+static void vmx_debug_ept_exit(const char *m, struct kvm_vcpu *vcpu)
+{
+	struct vcpu_vmx *vmx = to_vmx(vcpu);
+	u64 gpa, gla;
+
+	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+	gla = vmcs_read64(GUEST_LINEAR_ADDRESS);
+	
+	pr_warn("%p exit_reason: %d, gpa: 0x%llx gla: 0x%llx vector_info 0x08%x\n",
+		m, vmx->exit_reason, gpa, gla, vmx->idt_vectoring_info);
+
+	kvm_mmu_pr_debug_sptes(vcpu, gpa);
+}
+
 static int handle_ept_violation(struct kvm_vcpu *vcpu)
 {
 	unsigned long exit_qualification;
@@ -6158,6 +6172,9 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 	return kvm_mmu_page_fault(vcpu, gpa, error_code, NULL, 0);
 }
 
+static bool ept_misconfig_debug = true;
+module_param(ept_misconfig_debug, bool, S_IRUGO | S_IWUSR);
+
 static int handle_ept_misconfig(struct kvm_vcpu *vcpu)
 {
 	int ret;
@@ -6174,6 +6191,9 @@ static int handle_ept_misconfig(struct kvm_vcpu *vcpu)
 	if (likely(ret == RET_MMIO_PF_EMULATE))
 		return x86_emulate_instruction(vcpu, gpa, 0, NULL, 0) ==
 					      EMULATE_DONE;
+
+	if (ept_misconfig_debug)
+		vmx_debug_ept_exit("non-MMIO EPT_MISCONFIG", vcpu);
 
 	if (unlikely(ret == RET_MMIO_PF_INVALID))
 		return kvm_mmu_page_fault(vcpu, gpa, 0, NULL, 0);
@@ -8422,6 +8442,8 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 			exit_reason != EXIT_REASON_EPT_VIOLATION &&
 			exit_reason != EXIT_REASON_PML_FULL &&
 			exit_reason != EXIT_REASON_TASK_SWITCH)) {
+		if (exit_reason == EXIT_REASON_EPT_MISCONFIG)
+			vmx_debug_ept_exit("EPT_MISCONFIG on interrupt injection", vcpu);
 		vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
 		vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_DELIVERY_EV;
 		vcpu->run->internal.ndata = 2;
