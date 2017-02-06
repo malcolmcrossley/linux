@@ -6116,7 +6116,7 @@ static void vmx_debug_ept_exit(const char *m, struct kvm_vcpu *vcpu)
 	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
 	gla = vmcs_read64(GUEST_LINEAR_ADDRESS);
 	
-	pr_warn("%p exit_reason: %d, gpa: 0x%llx gla: 0x%llx vector_info 0x08%x\n",
+	pr_warn("%s exit_reason: %d, gpa: 0x%llx gla: 0x%llx vector_info 0x08%x\n",
 		m, vmx->exit_reason, gpa, gla, vmx->idt_vectoring_info);
 
 	kvm_mmu_pr_debug_sptes(vcpu, gpa);
